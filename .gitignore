@@ -1,0 +1,78 @@
+# .gitignore - Files and folders to exclude from Git
+
+# Virtual environment
+venv/
+env/
+ENV/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Cache directories
+.cache/
+
+# Experiment outputs
+experiments/
+wandb/
+
+# Checkpoints (large files)
+*.pt
+*.pth
+*.bin
+*.safetensors
+
+# Logs
+*.log
+logs/
+
+# Environment variables (contains sensitive info)
+.env
+
+# IDE-specific files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Distribution / packaging
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# PyTorch Lightning
+lightning_logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Data files (if large)
+data/*.json
+data/*.csv
+# But keep the folder structure
+!data/.gitkeep
+
+# Keep important placeholder files
+!experiments/.gitkeep
