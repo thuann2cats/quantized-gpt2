@@ -80,7 +80,7 @@ class QuantizedGPT2Block(GPT2Block):
         if isinstance(config_name_or_obj, str):
             if config_name_or_obj not in self.available_layer_bit_width_configs:
                 raise ValueError(f"Config '{config_name_or_obj}' not found in available configs")
-                self.current_layer_bit_width_config = config_name_or_obj
+            self.current_layer_bit_width_config = config_name_or_obj
 
         else:
             self.current_layer_bit_width_config = "custom"
