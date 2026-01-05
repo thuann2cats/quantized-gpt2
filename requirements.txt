@@ -1,0 +1,25 @@
+# Core Deep Learning
+torch
+torchvision
+torchaudio
+
+# Transformers & NLP
+transformers
+datasets
+tokenizers
+accelerate
+
+# Training & Experiment Tracking
+wandb
+tqdm
+
+# Scientific Computing
+numpy
+scipy
+
+# Configuration & Utilities
+pyyaml
+python-dotenv
+
+# Testing
+pytest
