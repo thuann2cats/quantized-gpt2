@@ -1,0 +1,88 @@
+# Joint Training Configuration for SQuAD QA Fine-tuning
+# All 5 bit-width configs trained simultaneously on each batch
+
+experiment:
+  name: "joint_training_5configs"
+  type: "joint"
+  base_folder: "experiments"
+  description: "Joint training with uniform 4/6/8/12/16-bit configurations"
+
+model:
+  pretrained_model: "gpt2"
+  
+  # 5 uniform bit-width configurations
+  bit_width_configs:
+    uniform_4bit:
+      type: "uniform"
+      bit_width_w: 4
+      bit_width_a: 16
+      bit_width_kv: 32
+      
+    uniform_6bit:
+      type: "uniform"
+      bit_width_w: 6
+      bit_width_a: 16
+      bit_width_kv: 32
+      
+    uniform_8bit:
+      type: "uniform"
+      bit_width_w: 8
+      bit_width_a: 16
+      bit_width_kv: 32
+      
+    uniform_12bit:
+      type: "uniform"
+      bit_width_w: 12
+      bit_width_a: 16
+      bit_width_kv: 32
+      
+    uniform_16bit:
+      type: "uniform"
+      bit_width_w: 16
+      bit_width_a: 16
+      bit_width_kv: 32
+
+training:
+  num_steps: 1000
+  batch_size: 32
+  learning_rate: 5.0e-5
+  weight_decay: 0.01
+  warmup_steps: 100
+  max_grad_norm: 1.0
+  
+  # Logging intervals
+  log_every_steps: 50
+  validate_every_steps: 50
+  num_validation_steps: 25
+  
+  # Optimizer settings
+  optimizer: "adamw"
+  adam_beta1: 0.9
+  adam_beta2: 0.999
+  adam_epsilon: 1.0e-8
+  
+  # Device
+  device: "cuda:0"
+  seed: 42
+  
+lora:
+  r: 8
+  lora_alpha: 16.0
+  lora_dropout: 0.05
+  
+data:
+  dataset_name: "squad_v2"
+  max_length: 384
+  doc_stride: 128
+  val_split_ratio: 0.1
+  val_split_seed: 42
+  
+logging:
+  use_wandb: true
+  wandb_project: "quantized-gpt2-qa"
+  wandb_entity: null  # Set to your username if needed
+  log_to_file: true
+  
+checkpointing:
+  save_final: true
+  checkpoint_name: "final_checkpoint.pt"

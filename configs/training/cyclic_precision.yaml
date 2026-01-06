@@ -1,0 +1,62 @@
+# Cyclic Precision Training Configuration for SQuAD QA Fine-tuning
+# Bit-width varies smoothly using cosine schedule
+
+experiment:
+  name: "cpt_training_4to8bit"
+  type: "cyclic"
+  base_folder: "experiments"
+  description: "CPT with cosine schedule from 4-bit to 8-bit weights"
+
+model:
+  pretrained_model: "gpt2"
+  
+  # CPT parameters (configs auto-generated in train.py)
+  cyclic_schedule:
+    b_min: 4
+    b_max: 8
+    cycle_length: 1000  # One full cycle over training
+
+training:
+  num_steps: 1000
+  batch_size: 32
+  learning_rate: 5.0e-5
+  weight_decay: 0.01
+  warmup_steps: 100
+  max_grad_norm: 1.0
+  
+  # Logging intervals
+  log_every_steps: 50
+  validate_every_steps: 50
+  num_validation_steps: 25
+  
+  # Optimizer settings
+  optimizer: "adamw"
+  adam_beta1: 0.9
+  adam_beta2: 0.999
+  adam_epsilon: 1.0e-8
+  
+  # Device
+  device: "cuda:0"
+  seed: 42
+  
+lora:
+  r: 8
+  lora_alpha: 16.0
+  lora_dropout: 0.05
+  
+data:
+  dataset_name: "squad_v2"
+  max_length: 384
+  doc_stride: 128
+  val_split_ratio: 0.1
+  val_split_seed: 42
+  
+logging:
+  use_wandb: true
+  wandb_project: "quantized-gpt2-qa"
+  wandb_entity: null
+  log_to_file: true
+  
+checkpointing:
+  save_final: true
+  checkpoint_name: "final_checkpoint.pt"
