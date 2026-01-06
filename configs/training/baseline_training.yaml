@@ -1,0 +1,54 @@
+# Baseline Training Configuration for SQuAD QA Fine-tuning
+# Standard FP32 fine-tuning without quantization or LoRA
+
+experiment:
+  name: "baseline_gpt2"
+  type: "baseline"
+  base_folder: "experiments"
+  description: "Baseline training: Standard GPT-2 fine-tuning on SQuAD v2 (No Quantization, No LoRA)"
+
+model:
+  pretrained_model: "gpt2"
+  # bit_width_configs removed as they are irrelevant for baseline
+
+training:
+  num_steps: 1000
+  batch_size: 32  # Reduced from 32 because full FT uses more memory than LoRA
+  learning_rate: 3.0e-5  # Slightly lower LR for full fine-tuning
+  weight_decay: 0.01
+  warmup_steps: 100
+  max_grad_norm: 1.0
+  
+  # Logging intervals
+  log_every_steps: 25
+  validate_every_steps: 50
+  num_validation_steps: 5
+  
+  # Optimizer settings
+  optimizer: "adamw"
+  adam_beta1: 0.9
+  adam_beta2: 0.999
+  adam_epsilon: 1.0e-8
+  
+  # Device
+  device: "cuda:2"
+  seed: 42
+  
+# LoRA config removed
+
+data:
+  dataset_name: "squad_v2"
+  max_length: 384
+  doc_stride: 128
+  val_split_ratio: 0.1
+  val_split_seed: 42
+  
+logging:
+  use_wandb: true
+  wandb_project: "quantized-gpt2-qa"
+  wandb_entity: null
+  log_to_file: true
+  
+checkpointing:
+  save_final: true
+  checkpoint_name: "baseline_final.pt"

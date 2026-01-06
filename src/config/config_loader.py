@@ -5,66 +5,10 @@ Configuration loader for training configs.
 import yaml
 from pathlib import Path
 from typing import Dict, Any
-from dataclasses import dataclass
 
 from src.config.layer_config import LayerBitWidthConfig
 from src.config.model_config import ModelBitWidthConfig, create_uniform_model_config
 from src.config.lora_config import LoRAConfig
-
-
-@dataclass
-class TrainingConfig:
-    """Parsed training configuration."""
-    
-    # Experiment
-    experiment_name: str
-    experiment_type: str  # "joint" or "cyclic"
-    base_folder: str
-    description: str
-    
-    # Model
-    pretrained_model: str
-    bit_width_configs: Dict[str, ModelBitWidthConfig]
-    
-    # Training
-    num_steps: int
-    batch_size: int
-    learning_rate: float
-    weight_decay: float
-    warmup_steps: int
-    max_grad_norm: float
-    log_every_steps: int
-    validate_every_steps: int
-    num_validation_steps: int
-    optimizer: str
-    adam_beta1: float
-    adam_beta2: float
-    adam_epsilon: float
-    device: str
-    seed: int
-    
-    # CPT-specific (None for joint training)
-    cyclic_schedule: Dict[str, Any] = None
-    
-    # LoRA
-    lora_config: LoRAConfig = None
-    
-    # Data
-    dataset_name: str = "squad_v2"
-    max_length: int = 384
-    doc_stride: int = 128
-    val_split_ratio: float = 0.1
-    val_split_seed: int = 42
-    
-    # Logging
-    use_wandb: bool = True
-    wandb_project: str = "quantized-gpt2-qa"
-    wandb_entity: str = None
-    log_to_file: bool = True
-    
-    # Checkpointing
-    save_final: bool = True
-    checkpoint_name: str = "final_checkpoint.pt"
 
 
 def parse_bit_width_config(config_dict: Dict[str, Any]) -> ModelBitWidthConfig:
@@ -96,89 +40,53 @@ def parse_bit_width_config(config_dict: Dict[str, Any]) -> ModelBitWidthConfig:
     )
 
 
-def load_training_config(config_path: str) -> TrainingConfig:
+def load_training_config(config_path: str) -> Dict[str, Any]:
     """
-    Load training configuration from YAML file.
+    Load training configuration from YAML file as a dict.
+    Parses bit-width configs and LoRA config into proper objects.
     
     Args:
         config_path: Path to YAML config file
     
     Returns:
-        TrainingConfig object
+        Config dict with YAML hierarchy preserved
     """
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
     
-    # Parse bit-width configs
-    bit_width_configs = {}
-    for name, cfg in config['model']['bit_width_configs'].items():
-        bit_width_configs[name] = parse_bit_width_config(cfg)
+    # Parse bit-width configs (if present - for joint training)
+    if 'bit_width_configs' in config['model']:
+        bit_width_configs = {}
+        for name, cfg in config['model']['bit_width_configs'].items():
+            bit_width_configs[name] = parse_bit_width_config(cfg)
+        config['model']['bit_width_configs'] = bit_width_configs
+    
+    # Parse cyclic_schedule bit-width configs (if present - for cyclic training)
+    if 'cyclic_schedule' in config['model']:
+        schedule = config['model']['cyclic_schedule']
+        # Generate bit-width configs for all bit widths in range
+        bit_width_configs = {}
+        for bw in range(schedule['b_min'], schedule['b_max'] + 1):
+            bit_width_configs[f'uniform_{bw}bit'] = create_uniform_model_config(
+                bit_width_w=bw,
+                bit_width_a=schedule.get('bit_width_a', 16),
+                bit_width_kv=schedule.get('bit_width_kv', 32)
+            )
+        config['model']['bit_width_configs'] = bit_width_configs
     
     # Parse LoRA config
-    lora_config = LoRAConfig(**config['lora'])
+    if 'lora' in config:
+        config['lora'] = LoRAConfig(**config['lora'])
     
-    # Build TrainingConfig
-    training_config = TrainingConfig(
-        # Experiment
-        experiment_name=config['experiment']['name'],
-        experiment_type=config['experiment']['type'],
-        base_folder=config['experiment']['base_folder'],
-        description=config['experiment']['description'],
-        
-        # Model
-        pretrained_model=config['model']['pretrained_model'],
-        bit_width_configs=bit_width_configs,
-        
-        # Training
-        num_steps=config['training']['num_steps'],
-        batch_size=config['training']['batch_size'],
-        learning_rate=config['training']['learning_rate'],
-        weight_decay=config['training']['weight_decay'],
-        warmup_steps=config['training']['warmup_steps'],
-        max_grad_norm=config['training']['max_grad_norm'],
-        log_every_steps=config['training']['log_every_steps'],
-        validate_every_steps=config['training']['validate_every_steps'],
-        num_validation_steps=config['training']['num_validation_steps'],
-        optimizer=config['training']['optimizer'],
-        adam_beta1=config['training']['adam_beta1'],
-        adam_beta2=config['training']['adam_beta2'],
-        adam_epsilon=config['training']['adam_epsilon'],
-        device=config['training']['device'],
-        seed=config['training']['seed'],
-        
-        # CPT-specific (may be None)
-        cyclic_schedule=config['training'].get('cyclic_schedule', None),
-        
-        # LoRA
-        lora_config=lora_config,
-        
-        # Data
-        dataset_name=config['data']['dataset_name'],
-        max_length=config['data']['max_length'],
-        doc_stride=config['data']['doc_stride'],
-        val_split_ratio=config['data']['val_split_ratio'],
-        val_split_seed=config['data']['val_split_seed'],
-        
-        # Logging
-        use_wandb=config['logging']['use_wandb'],
-        wandb_project=config['logging']['wandb_project'],
-        wandb_entity=config['logging']['wandb_entity'],
-        log_to_file=config['logging']['log_to_file'],
-        
-        # Checkpointing
-        save_final=config['checkpointing']['save_final'],
-        checkpoint_name=config['checkpointing']['checkpoint_name'],
-    )
-    
-    return training_config
+    return config
 
 
-# Convenience function
-def load_joint_training_config() -> TrainingConfig:
+# Convenience functions
+def load_joint_training_config() -> Dict[str, Any]:
     """Load default joint training config."""
     return load_training_config('configs/training/joint_training.yaml')
 
 
-def load_cyclic_training_config() -> TrainingConfig:
+def load_cyclic_training_config() -> Dict[str, Any]:
     """Load default cyclic precision training config."""
     return load_training_config('configs/training/cyclic_precision.yaml')

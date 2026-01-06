@@ -1,17 +1,10 @@
 """
-Training script for Quantized GPT-2 Question Answering.
-
-Supports:
-- Joint Training: All bit-width configs trained simultaneously
-- Cyclic Precision Training (CPT): Bit-width varies per step (cosine schedule)
+Training script for Baseline GPT-2 Question Answering.
 
 Usage:
-    python scripts/train.py --config configs/training/joint_training.yaml
-    python scripts/train.py --config configs/training/cyclic_precision.yaml
+    python scripts/train_baseline.py --config configs/training/baseline_training.yaml
 """
 from src.utils import env_setup
-# import sys
-# sys.path.append('/research/data/transfer/data/thuan/attempt_1')
 
 import argparse
 import os
@@ -24,10 +17,9 @@ from transformers import GPT2Config
 # Import our modules
 from src.config.config_loader import load_training_config
 from src.data.squad_dataset import prepare_squad_data
-from src.models.quantized_gpt2_for_qa import QuantizedGPT2ForQuestionAnswering
+from transformers import GPT2ForQuestionAnswering
 from src.utils.weight_loading import load_pretrained_gpt2_weights
-from src.training.joint_trainer import JointTrainer
-from src.training.cyclic_trainer import CyclicTrainer
+from src.training.baseline_trainer import BaselineTrainer
 
 
 def set_seed(seed: int):
@@ -38,11 +30,10 @@ def set_seed(seed: int):
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
 
-
 def main():
     # Parse arguments
     parser = argparse.ArgumentParser(
-        description="Train Quantized GPT-2 for Question Answering"
+        description="Train Baseline GPT-2 for Question Answering"
     )
     parser.add_argument(
         '--config',
@@ -83,66 +74,27 @@ def main():
     print("Creating model...")
     print("=" * 80)
     
-    # Load base GPT-2 config from HuggingFace
-    gpt2_config = GPT2Config.from_pretrained(config['model']['pretrained_model'])
-    print(f"Base model: {config['model']['pretrained_model']}")
-    print(f"Hidden size: {gpt2_config.hidden_size}")
-    print(f"Num layers: {gpt2_config.num_hidden_layers}")
-    print(f"Num heads: {gpt2_config.num_attention_heads}")
-    
-    # Create quantized model
-    model = QuantizedGPT2ForQuestionAnswering(
-        config=gpt2_config,
-        available_model_bit_width_configs=config['model']['bit_width_configs'],
-        lora_config=config['lora']
-    )
-    
-    print(f"✅ Model created with {len(config['model']['bit_width_configs'])} bit-width configs")
-    print(f"Configs: {list(config['model']['bit_width_configs'].keys())}")
-    
-    # Load pretrained weights
+    # Create baseline model using HuggingFace's implementation
     print("\n" + "=" * 80)
-    print("Loading pretrained weights...")
+    print(f"Loading pretrained model: {config['model']['pretrained_model']}")
     print("=" * 80)
-    missing_keys, unexpected_keys = load_pretrained_gpt2_weights(
-        model,
-        pretrained_model_name=config['model']['pretrained_model']
-    )
     
-    print(f"Missing keys: {len(missing_keys)} (LoRA params - expected)")
-    print(f"Unexpected keys: {len(unexpected_keys)}")
-    
-    if len(unexpected_keys) > 0:
-        print("⚠️  Warning: Unexpected keys found!")
-        print(unexpected_keys[:10])  # Show first 10
+    model = GPT2ForQuestionAnswering.from_pretrained(config['model']['pretrained_model'])
+    print("✅ Baseline GPT-2 Model loaded (No Quantization, No LoRA)")
     
     # Create trainer
     print("\n" + "=" * 80)
     print("Creating trainer...")
     print("=" * 80)
     
-    if config['experiment']['type'] == 'joint':
-        trainer = JointTrainer(
-            config=config,
-            model=model,
-            train_loader=train_loader,
-            val_loader=val_loader,
-            tokenizer=tokenizer
-        )
-        print("✅ Joint Trainer created")
-    
-    elif config['experiment']['type'] == 'cyclic':
-        trainer = CyclicTrainer(
-            config=config,
-            model=model,
-            train_loader=train_loader,
-            val_loader=val_loader,
-            tokenizer=tokenizer
-        )
-        print("✅ CPT Trainer created")
-    
-    else:
-        raise ValueError(f"Unknown experiment type: {config['experiment']['type']}")
+    trainer = BaselineTrainer(
+        config=config,
+        model=model,
+        train_loader=train_loader,
+        val_loader=val_loader,
+        tokenizer=tokenizer
+    )
+    print("✅ Baseline Trainer created")
     
     # Copy config to experiment directory
     config_copy_path = os.path.join(trainer.experiment_dir, 'config.yaml')

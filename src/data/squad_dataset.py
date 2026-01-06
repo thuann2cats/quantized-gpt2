@@ -6,11 +6,11 @@ import torch
 from torch.utils.data import DataLoader, Dataset
 from datasets import load_dataset, DatasetDict
 from transformers import GPT2TokenizerFast
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, Any
 import random
 
 
-def load_squad_dataset(cache_dir: Optional[str] = None) -> DatasetDict:
+def load_squad_dataset(dataset_name = 'squad_v2', cache_dir: Optional[str] = None) -> DatasetDict:
     """
     Load SQuAD v2 dataset from HuggingFace.
     
@@ -20,7 +20,7 @@ def load_squad_dataset(cache_dir: Optional[str] = None) -> DatasetDict:
     Returns:
         DatasetDict with 'train' and 'validation' splits
     """
-    dataset = load_dataset('squad_v2', cache_dir=cache_dir)
+    dataset = load_dataset(dataset_name, cache_dir=cache_dir)
     return dataset
 
 
@@ -131,12 +131,23 @@ def preprocess_squad_for_qa(
     
     tokenized['start_positions'] = start_positions
     tokenized['end_positions'] = end_positions
+
+    # Map answers to overflowed examples using sample_mapping
+    answers_for_overflow = []
+    for i in range(len(tokenized['input_ids'])):
+        sample_idx = sample_mapping[i]
+        answers_for_overflow.append(answers[sample_idx]['text'])
+
+    tokenized['answers'] = answers_for_overflow
+
+    tokenized['start_positions'] = start_positions
+    tokenized['end_positions'] = end_positions
     
     return tokenized
 
 
 
-def setup_gpt2_tokenizer_for_qa() -> GPT2TokenizerFast:
+def setup_gpt2_tokenizer_for_qa(model_name = 'gpt2') -> GPT2TokenizerFast:
     """
     Setup GPT-2 tokenizer for question answering.
     
@@ -146,7 +157,7 @@ def setup_gpt2_tokenizer_for_qa() -> GPT2TokenizerFast:
     Returns:
         Configured GPT2TokenizerFast
     """
-    tokenizer = GPT2TokenizerFast.from_pretrained('gpt2')
+    tokenizer = GPT2TokenizerFast.from_pretrained(model_name)
     
     # GPT-2 doesn't have pad token, use eos_token
     tokenizer.pad_token = tokenizer.eos_token
@@ -200,6 +211,7 @@ class SQuADDataset(Dataset):
         self.features = self.dataset.map(
             lambda examples: preprocess_squad_for_qa(examples, tokenizer, max_length),
             batched=True,
+            # remove_columns=self.dataset.column_names,
             remove_columns=self.dataset.column_names,
             desc="Preprocessing SQuAD"
         )
@@ -221,8 +233,28 @@ class SQuADDataset(Dataset):
             'attention_mask': torch.tensor(item['attention_mask'], dtype=torch.long),
             'start_positions': torch.tensor(item['start_positions'], dtype=torch.long),
             'end_positions': torch.tensor(item['end_positions'], dtype=torch.long),
+            'answers': item['answers'],
         }        
     
+
+def collate_squad_batch(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Custom collate function for SQuAD batches.
+    - Stacks tensors for input_ids, attention_mask, etc.
+    - Collects 'answers' into a list (because list lengths vary per example)
+    """
+    # Separate answers from tensor fields
+    answers = [item.pop('answers') for item in batch]
+    
+    # Use default_collate for remaining tensor fields
+    from torch.utils.data.dataloader import default_collate
+    collated_batch = default_collate(batch)
+    
+    # Add answers back as a simple list
+    collated_batch['answers'] = answers
+    
+    return collated_batch
+
 
 def create_dataloader(
     dataset: Dataset,
@@ -248,10 +280,12 @@ def create_dataloader(
         shuffle=shuffle,
         num_workers=num_workers,
         pin_memory=True,
+        collate_fn=collate_squad_batch  # Custom collate function
     )
     
 
 def prepare_squad_data(
+    dataset_name: str = "squad_v2",
     batch_size: int = 32,
     max_length: int = 384,
     val_size: float = 0.1,
@@ -271,7 +305,7 @@ def prepare_squad_data(
     """
     # Load dataset
     print("Loading SQuAD v2 dataset...")
-    dataset = load_squad_dataset(cache_dir)
+    dataset = load_squad_dataset(dataset_name, cache_dir)
     
     # Setup tokenizer
     print("Setting up tokenizer...")

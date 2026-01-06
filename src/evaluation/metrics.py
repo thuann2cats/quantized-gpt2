@@ -1,7 +1,7 @@
 import re
 import string
 from collections import Counter
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Any
 import torch
 
 
@@ -155,6 +155,11 @@ def extract_answer_from_logits(
                     best_start = i
                     best_end = j
         
+        # Explicitly handle unanswerable prediction (0, 0)
+        if best_start == 0 and best_end == 0:
+            answers.append("")
+            continue
+
         # Extract answer tokens
         answer_ids = ids[best_start:best_end + 1]
         
@@ -189,7 +194,7 @@ def compute_squad_metrics(
     
     Returns:
         Dict with average metrics across batch:
-            {'em': float, 'f1': float}
+            {'em': float, 'f1': float, 'details': List[Dict]}
 
     """
     # Extract predictions
@@ -206,22 +211,42 @@ def compute_squad_metrics(
     # Compute metrics for each example
     em_scores = []
     f1_scores = []
+    details = []
     
     for pred, gt in zip(predictions, ground_truths):
         # Handle multiple ground truth answers (SQuAD v2 feature)
+        # if isinstance(gt, list):
+        #     # Take max score across all ground truths
+        #     em = max(compute_exact_match(pred, g) for g in gt)
+        #     f1 = max(compute_f1_score(pred, g) for g in gt)
         if isinstance(gt, list):
+            # <--- PROPOSED CHANGE START --->
+            # If list is empty (unanswerable), treat valid answer as [""]
+            if len(gt) == 0:
+                gt = [""]
+            # <--- PROPOSED CHANGE END --->
+
             # Take max score across all ground truths
             em = max(compute_exact_match(pred, g) for g in gt)
             f1 = max(compute_f1_score(pred, g) for g in gt)
+
         else:
             em = compute_exact_match(pred, gt)
             f1 = compute_f1_score(pred, gt)
         
         em_scores.append(em)
         f1_scores.append(f1)
+        
+        details.append({
+            'prediction': pred,
+            'ground_truth': gt,
+            'em': em,
+            'f1': f1
+        })
     
     # Average across batch
     return {
         'em': sum(em_scores) / len(em_scores) if em_scores else 0.0,
-        'f1': sum(f1_scores) / len(f1_scores) if f1_scores else 0.0
+        'f1': sum(f1_scores) / len(f1_scores) if f1_scores else 0.0,
+        'details': details
     }

@@ -24,12 +24,13 @@ class CyclicTrainer(BaseTrainer):
         super().__init__(config, model, train_loader, val_loader, tokenizer)
         
         # CPT-specific parameters from config
-        self.b_min = config.cyclic_schedule['b_min']
-        self.b_max = config.cyclic_schedule['b_max']
-        self.cycle_length = config.cyclic_schedule.get('cycle_length', config.num_steps)
+        schedule = config['model']['cyclic_schedule']
+        self.b_min = schedule['b_min']
+        self.b_max = schedule['b_max']
+        self.cycle_length = schedule.get('cycle_length', config['training']['num_steps'])
         
-        # Get bit-width config names (should be uniform_4bit, uniform_5bit, ..., uniform_8bit)
-        self.bit_width_config_names = list(config.bit_width_configs.keys())
+        # Get bit-width config names (auto-generated in config_loader)
+        self.bit_width_config_names = list(config['model']['bit_width_configs'].keys())
         
         self.logger.info(f"CPT training with B_min={self.b_min}, B_max={self.b_max}")
         self.logger.info(f"Cycle length: {self.cycle_length} steps")
@@ -46,7 +47,7 @@ class CyclicTrainer(BaseTrainer):
         
         for config_name in self.bit_width_config_names:
             # Get the ModelBitWidthConfig for this config name
-            model_bit_width_config = self.config.bit_width_configs[config_name]
+            model_bit_width_config = self.config['model']['bit_width_configs'][config_name]
             metrics = self.compute_efficiency_metrics(config_name, model_bit_width_config)
             
             self.logger.info(
@@ -56,7 +57,7 @@ class CyclicTrainer(BaseTrainer):
             )
             
             # Log to wandb as summary (not time-series)
-            if self.config.use_wandb:
+            if self.config['logging']['use_wandb']:
                 import wandb
                 for metric_name, value in metrics.items():
                     wandb.run.summary[f"efficiency/{config_name}/{metric_name}"] = value
@@ -119,12 +120,12 @@ class CyclicTrainer(BaseTrainer):
         start_loss = F.cross_entropy(
             outputs.start_logits,
             batch['start_positions'],
-            ignore_index=-1  # Ignore impossible answers (SQuAD v2)
+            # ignore_index=-1  # Ignore impossible answers (SQuAD v2)
         )
         end_loss = F.cross_entropy(
             outputs.end_logits,
             batch['end_positions'],
-            ignore_index=-1
+            # ignore_index=-1
         )
         loss = (start_loss + end_loss) / 2
         
@@ -134,7 +135,7 @@ class CyclicTrainer(BaseTrainer):
         # Gradient clipping
         clip_grad_norm_(
             self.model.parameters(),
-            self.config.max_grad_norm
+            self.config['training']['max_grad_norm']
         )
         
         # Optimizer step
@@ -168,8 +169,19 @@ class CyclicTrainer(BaseTrainer):
         
         val_iter = iter(self.val_loader)
         
+        # Progress bar for validation
+        val_range = tqdm(
+            range(self.config['training']['num_validation_steps']),
+            desc="Validation",
+            dynamic_ncols=True,
+            leave=False
+        )
+
+        # Store samples for logging
+        sample_logs = []
+        
         with torch.no_grad():
-            for _ in range(self.config.num_validation_steps):
+            for step_i in val_range:
                 try:
                     batch = next(val_iter)
                 except StopIteration:
@@ -177,7 +189,11 @@ class CyclicTrainer(BaseTrainer):
                     batch = next(val_iter)
                 
                 # Move to device
-                batch = {k: v.to(self.config.device) for k, v in batch.items()}
+                # batch = {k: v.to(self.config['training']['device']) for k, v in batch.items()}
+                batch = {
+                    k: v.to(self.config['training']['device']) if isinstance(v, torch.Tensor) else v
+                    for k, v in batch.items()
+                }
                 
                 # Evaluate each config
                 for config_name in self.bit_width_config_names:
@@ -192,12 +208,12 @@ class CyclicTrainer(BaseTrainer):
                     start_loss = F.cross_entropy(
                         outputs.start_logits,
                         batch['start_positions'],
-                        ignore_index=-1
+                        # ignore_index=-1
                     )
                     end_loss = F.cross_entropy(
                         outputs.end_logits,
                         batch['end_positions'],
-                        ignore_index=-1
+                        # ignore_index=-1
                     )
                     loss = (start_loss + end_loss) / 2
                     
@@ -213,12 +229,16 @@ class CyclicTrainer(BaseTrainer):
                     metrics_by_config[config_name]['loss'] += loss.item()
                     metrics_by_config[config_name]['em'] += squad_metrics['em']
                     metrics_by_config[config_name]['f1'] += squad_metrics['f1']
+
+                    # Collect samples from the first batch and first config
+                    if step_i == 0 and config_name == self.bit_width_config_names[0]:
+                        sample_logs.extend(squad_metrics.get('details', [])[:5])
         
         # Average over validation steps
         for config_name in self.bit_width_config_names:
-            metrics_by_config[config_name]['loss'] /= self.config.num_validation_steps
-            metrics_by_config[config_name]['em'] /= self.config.num_validation_steps
-            metrics_by_config[config_name]['f1'] /= self.config.num_validation_steps
+            metrics_by_config[config_name]['loss'] /= self.config['training']['num_validation_steps']
+            metrics_by_config[config_name]['em'] /= self.config['training']['num_validation_steps']
+            metrics_by_config[config_name]['f1'] /= self.config['training']['num_validation_steps']
         
         # Compute aggregate metrics (mean across configs)
         aggregate = {
@@ -232,6 +252,23 @@ class CyclicTrainer(BaseTrainer):
         for config_name, metrics in metrics_by_config.items():
             for metric_name, value in metrics.items():
                 result[f"{config_name}_{metric_name}"] = value
+
+        # Log sampled predictions
+        if sample_logs:
+            self.logger.info("\n" + "="*50)
+            self.logger.info("🔍 VALIDATION PREDICTION SAMPLES")
+            self.logger.info("="*50)
+            for i, s in enumerate(sample_logs):
+                self.logger.info(f"[{i+1}] Prediction: '{s['prediction']}'")
+                gt = s['ground_truth']
+                # If gt is [""] or similar, make it more readable
+                if isinstance(gt, list) and len(gt) == 1 and gt[0] == "":
+                    gt_display = "<Unanswerable>"
+                else:
+                    gt_display = str(gt)
+                self.logger.info(f"    Ground Truth: {gt_display}")
+                self.logger.info(f"    Metrics: EM={s['em']:.1f}, F1={s['f1']:.2f}")
+                self.logger.info("-" * 30)
         
         return result
     
@@ -241,12 +278,12 @@ class CyclicTrainer(BaseTrainer):
         
         # Progress bar
         pbar = tqdm(
-            total=self.config.num_steps,
+            total=self.config['training']['num_steps'],
             desc="CPT Training",
             dynamic_ncols=True
         )
         
-        for step in range(1, self.config.num_steps + 1):
+        for step in range(1, self.config['training']['num_steps'] + 1):
             # Get batch
             batch = self.get_next_batch()
             
@@ -262,11 +299,11 @@ class CyclicTrainer(BaseTrainer):
             })
             
             # Logging
-            if step % self.config.log_every_steps == 0:
+            if step % self.config['training']['log_every_steps'] == 0:
                 self.log_metrics(train_metrics, step, phase='train')
             
             # Validation
-            if step % self.config.validate_every_steps == 0:
+            if step % self.config['training']['validate_every_steps'] == 0:
                 self.logger.info(f"Running validation at step {step}...")
                 val_metrics = self.validation_step()
                 self.log_metrics(val_metrics, step, phase='val')
@@ -282,10 +319,10 @@ class CyclicTrainer(BaseTrainer):
         pbar.close()
         
         # Save final checkpoint
-        if self.config.save_final:
+        if self.config['checkpointing']['save_final']:
             self.logger.info("Saving final checkpoint...")
             self.save_checkpoint(
-                step=self.config.num_steps,
+                step=self.config['training']['num_steps'],
                 metrics={'final': True}
             )
             self.logger.info(f"Final checkpoint saved to {self.experiment_dir}/checkpoints/")

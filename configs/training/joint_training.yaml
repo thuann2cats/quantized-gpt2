@@ -1,17 +1,23 @@
 # Joint Training Configuration for SQuAD QA Fine-tuning
-# All 5 bit-width configs trained simultaneously on each batch
+# All 16 diverse bit-width configs trained simultaneously on each batch
 
 experiment:
-  name: "joint_training_5configs"
+  name: "joint_training_16configs"
   type: "joint"
   base_folder: "experiments"
-  description: "Joint training with uniform 4/6/8/12/16-bit configurations"
+  description: "Joint training with 16 diverse configs: uniform, gradient, mixed, critical-first, and coverage"
 
 model:
   pretrained_model: "gpt2"
   
-  # 5 uniform bit-width configurations
+  # 16 diverse bit-width configurations
+  # Category 1: Uniform configs (5)
+  # Category 2: Gradient configs (4)
+  # Category 3: Mixed precision configs (4)
+  # Category 4: Critical-first configs (2)
+  # Category 5: Full coverage config (1)
   bit_width_configs:
+    # ========== Category 1: Uniform Configs (5) ==========
     uniform_4bit:
       type: "uniform"
       bit_width_w: 4
@@ -41,6 +47,207 @@ model:
       bit_width_w: 16
       bit_width_a: 16
       bit_width_kv: 32
+    
+    # ========== Category 2: Gradient Configs (4) ==========
+    gradient_ascending:
+      type: "gradient"
+      layers:
+        # Layers 0-2: 4-bit
+        - {bit_width_w: 4, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 4, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 4, bit_width_a: 16, bit_width_kv: 32}
+        # Layers 3-5: 6-bit
+        - {bit_width_w: 6, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 6, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 6, bit_width_a: 16, bit_width_kv: 32}
+        # Layers 6-8: 8-bit
+        - {bit_width_w: 8, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 8, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 8, bit_width_a: 16, bit_width_kv: 32}
+        # Layers 9-11: 12-bit
+        - {bit_width_w: 12, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 12, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 12, bit_width_a: 16, bit_width_kv: 32}
+    
+    gradient_descending:
+      type: "gradient"
+      layers:
+        # Layers 0-2: 16-bit
+        - {bit_width_w: 16, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 16, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 16, bit_width_a: 16, bit_width_kv: 32}
+        # Layers 3-5: 12-bit
+        - {bit_width_w: 12, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 12, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 12, bit_width_a: 16, bit_width_kv: 32}
+        # Layers 6-8: 8-bit
+        - {bit_width_w: 8, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 8, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 8, bit_width_a: 16, bit_width_kv: 32}
+        # Layers 9-11: 6-bit
+        - {bit_width_w: 6, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 6, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 6, bit_width_a: 16, bit_width_kv: 32}
+    
+    gradient_smooth_up:
+      type: "gradient"
+      layers:
+        - {bit_width_w: 4, bit_width_a: 16, bit_width_kv: 32}   # Layer 0
+        - {bit_width_w: 4, bit_width_a: 16, bit_width_kv: 32}   # Layer 1
+        - {bit_width_w: 6, bit_width_a: 16, bit_width_kv: 32}   # Layer 2
+        - {bit_width_w: 6, bit_width_a: 16, bit_width_kv: 32}   # Layer 3
+        - {bit_width_w: 8, bit_width_a: 16, bit_width_kv: 32}   # Layer 4
+        - {bit_width_w: 8, bit_width_a: 16, bit_width_kv: 32}   # Layer 5
+        - {bit_width_w: 8, bit_width_a: 16, bit_width_kv: 32}   # Layer 6
+        - {bit_width_w: 8, bit_width_a: 16, bit_width_kv: 32}   # Layer 7
+        - {bit_width_w: 12, bit_width_a: 16, bit_width_kv: 32}  # Layer 8
+        - {bit_width_w: 12, bit_width_a: 16, bit_width_kv: 32}  # Layer 9
+        - {bit_width_w: 16, bit_width_a: 16, bit_width_kv: 32}  # Layer 10
+        - {bit_width_w: 16, bit_width_a: 16, bit_width_kv: 32}  # Layer 11
+    
+    gradient_smooth_down:
+      type: "gradient"
+      layers:
+        - {bit_width_w: 16, bit_width_a: 16, bit_width_kv: 32}  # Layer 0
+        - {bit_width_w: 16, bit_width_a: 16, bit_width_kv: 32}  # Layer 1
+        - {bit_width_w: 12, bit_width_a: 16, bit_width_kv: 32}  # Layer 2
+        - {bit_width_w: 12, bit_width_a: 16, bit_width_kv: 32}  # Layer 3
+        - {bit_width_w: 8, bit_width_a: 16, bit_width_kv: 32}   # Layer 4
+        - {bit_width_w: 8, bit_width_a: 16, bit_width_kv: 32}   # Layer 5
+        - {bit_width_w: 8, bit_width_a: 16, bit_width_kv: 32}   # Layer 6
+        - {bit_width_w: 8, bit_width_a: 16, bit_width_kv: 32}   # Layer 7
+        - {bit_width_w: 6, bit_width_a: 16, bit_width_kv: 32}   # Layer 8
+        - {bit_width_w: 6, bit_width_a: 16, bit_width_kv: 32}   # Layer 9
+        - {bit_width_w: 4, bit_width_a: 16, bit_width_kv: 32}   # Layer 10
+        - {bit_width_w: 4, bit_width_a: 16, bit_width_kv: 32}   # Layer 11
+    
+    # ========== Category 3: Mixed Precision Configs (4) ==========
+    middle_emphasis:
+      type: "mixed"
+      layers:
+        # Layers 0-3: 6-bit
+        - {bit_width_w: 6, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 6, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 6, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 6, bit_width_a: 16, bit_width_kv: 32}
+        # Layers 4-7: 12-bit (emphasized)
+        - {bit_width_w: 12, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 12, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 12, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 12, bit_width_a: 16, bit_width_kv: 32}
+        # Layers 8-11: 6-bit
+        - {bit_width_w: 6, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 6, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 6, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 6, bit_width_a: 16, bit_width_kv: 32}
+    
+    edge_emphasis:
+      type: "mixed"
+      layers:
+        # Layers 0-2: 12-bit (early emphasis)
+        - {bit_width_w: 12, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 12, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 12, bit_width_a: 16, bit_width_kv: 32}
+        # Layers 3-8: 6-bit
+        - {bit_width_w: 6, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 6, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 6, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 6, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 6, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 6, bit_width_a: 16, bit_width_kv: 32}
+        # Layers 9-11: 12-bit (late emphasis)
+        - {bit_width_w: 12, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 12, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 12, bit_width_a: 16, bit_width_kv: 32}
+    
+    alternating_high_low:
+      type: "mixed"
+      layers:
+        - {bit_width_w: 12, bit_width_a: 16, bit_width_kv: 32}  # Layer 0: even (high)
+        - {bit_width_w: 6, bit_width_a: 16, bit_width_kv: 32}   # Layer 1: odd (low)
+        - {bit_width_w: 12, bit_width_a: 16, bit_width_kv: 32}  # Layer 2: even
+        - {bit_width_w: 6, bit_width_a: 16, bit_width_kv: 32}   # Layer 3: odd
+        - {bit_width_w: 12, bit_width_a: 16, bit_width_kv: 32}  # Layer 4: even
+        - {bit_width_w: 6, bit_width_a: 16, bit_width_kv: 32}   # Layer 5: odd
+        - {bit_width_w: 12, bit_width_a: 16, bit_width_kv: 32}  # Layer 6: even
+        - {bit_width_w: 6, bit_width_a: 16, bit_width_kv: 32}   # Layer 7: odd
+        - {bit_width_w: 12, bit_width_a: 16, bit_width_kv: 32}  # Layer 8: even
+        - {bit_width_w: 6, bit_width_a: 16, bit_width_kv: 32}   # Layer 9: odd
+        - {bit_width_w: 12, bit_width_a: 16, bit_width_kv: 32}  # Layer 10: even
+        - {bit_width_w: 6, bit_width_a: 16, bit_width_kv: 32}   # Layer 11: odd
+    
+    three_tier:
+      type: "mixed"
+      layers:
+        # Layers 0-3: Tier 1 (8-bit)
+        - {bit_width_w: 8, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 8, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 8, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 8, bit_width_a: 16, bit_width_kv: 32}
+        # Layers 4-7: Tier 2 (6-bit, compressed)
+        - {bit_width_w: 6, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 6, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 6, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 6, bit_width_a: 16, bit_width_kv: 32}
+        # Layers 8-11: Tier 3 (12-bit, high)
+        - {bit_width_w: 12, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 12, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 12, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 12, bit_width_a: 16, bit_width_kv: 32}
+    
+    # ========== Category 4: Critical-First Configs (2) ==========
+    bookend_high:
+      type: "critical"
+      layers:
+        # Layers 0-1: High (input)
+        - {bit_width_w: 16, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 16, bit_width_a: 16, bit_width_kv: 32}
+        # Layers 2-9: Low (middle)
+        - {bit_width_w: 4, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 4, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 4, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 4, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 4, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 4, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 4, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 4, bit_width_a: 16, bit_width_kv: 32}
+        # Layers 10-11: High (output)
+        - {bit_width_w: 16, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 16, bit_width_a: 16, bit_width_kv: 32}
+    
+    bookend_medium:
+      type: "critical"
+      layers:
+        - {bit_width_w: 12, bit_width_a: 16, bit_width_kv: 32}  # Layer 0: Medium high (input)
+        # Layers 1-10: Medium
+        - {bit_width_w: 12, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 8, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 6, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 6, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 6, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 6, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 6, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 6, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 8, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 12, bit_width_a: 16, bit_width_kv: 32}
+        - {bit_width_w: 12, bit_width_a: 16, bit_width_kv: 32}  # Layer 11: Medium high (output)
+    
+    # ========== Category 5: Full Coverage Config (1) ==========
+    full_coverage_cycle:
+      type: "coverage"
+      layers:
+        - {bit_width_w: 4, bit_width_a: 16, bit_width_kv: 32}   # Layer 0
+        - {bit_width_w: 6, bit_width_a: 16, bit_width_kv: 32}   # Layer 1
+        - {bit_width_w: 8, bit_width_a: 16, bit_width_kv: 32}   # Layer 2
+        - {bit_width_w: 12, bit_width_a: 16, bit_width_kv: 32}  # Layer 3
+        - {bit_width_w: 16, bit_width_a: 16, bit_width_kv: 32}  # Layer 4
+        - {bit_width_w: 4, bit_width_a: 16, bit_width_kv: 32}   # Layer 5
+        - {bit_width_w: 6, bit_width_a: 16, bit_width_kv: 32}   # Layer 6
+        - {bit_width_w: 8, bit_width_a: 16, bit_width_kv: 32}   # Layer 7
+        - {bit_width_w: 12, bit_width_a: 16, bit_width_kv: 32}  # Layer 8
+        - {bit_width_w: 16, bit_width_a: 16, bit_width_kv: 32}  # Layer 9
+        - {bit_width_w: 4, bit_width_a: 16, bit_width_kv: 32}   # Layer 10
+        - {bit_width_w: 6, bit_width_a: 16, bit_width_kv: 32}   # Layer 11
 
 training:
   num_steps: 1000
@@ -51,9 +258,9 @@ training:
   max_grad_norm: 1.0
   
   # Logging intervals
-  log_every_steps: 50
+  log_every_steps: 25
   validate_every_steps: 50
-  num_validation_steps: 25
+  num_validation_steps: 5
   
   # Optimizer settings
   optimizer: "adamw"

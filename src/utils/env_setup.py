@@ -12,15 +12,19 @@ from dotenv import load_dotenv
 
 
 def setup_environment():
-    # Load .env for other vars (like WANDB_API_KEY)
+    # Load .env for WANDB_API_KEY and CACHE_FOLDER
     current_file = Path(__file__)    
     project_root = current_file.parent.parent.parent  # Go up 3 levels
     env_path = project_root / '.env'
     load_dotenv(env_path)
     
-    # Compute cache paths relative to project root
-    project_root = Path(__file__).parent.parent.parent
-    cache_dir = project_root / '.cache'
+    # Get cache directory from .env or use default
+    cache_folder = os.environ.get('CACHE_FOLDER')
+    if cache_folder:
+        cache_dir = Path(cache_folder)
+    else:
+        # Fallback to project_root/.cache
+        cache_dir = project_root / '.cache'
     
     # Set cache paths programmatically
     os.environ['HF_HOME'] = str(cache_dir / 'huggingface')

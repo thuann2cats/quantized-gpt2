@@ -2,32 +2,34 @@
 # Bit-width varies smoothly using cosine schedule
 
 experiment:
-  name: "cpt_training_4to8bit"
+  name: "cpt_training_4to12bit"
   type: "cyclic"
   base_folder: "experiments"
-  description: "CPT with cosine schedule from 4-bit to 8-bit weights"
+  description: "CPT with cosine schedule from 4-bit to 12-bit weights"
 
 model:
   pretrained_model: "gpt2"
   
-  # CPT parameters (configs auto-generated in train.py)
+  # CPT parameters
   cyclic_schedule:
     b_min: 4
-    b_max: 8
-    cycle_length: 1000  # One full cycle over training
+    b_max: 12
+    cycle_length: 100  # One full cycle over training
+    bit_width_a: 16     # Fixed activation bits
+    bit_width_kv: 32    # Fixed KV cache bits
 
 training:
   num_steps: 1000
   batch_size: 32
   learning_rate: 5.0e-5
   weight_decay: 0.01
-  warmup_steps: 100
+  warmup_steps: 75  # 100
   max_grad_norm: 1.0
   
   # Logging intervals
-  log_every_steps: 50
+  log_every_steps: 25  # 50
   validate_every_steps: 50
-  num_validation_steps: 25
+  num_validation_steps: 5  # 25
   
   # Optimizer settings
   optimizer: "adamw"
@@ -36,7 +38,7 @@ training:
   adam_epsilon: 1.0e-8
   
   # Device
-  device: "cuda:0"
+  device: "cuda:1"
   seed: 42
   
 lora:

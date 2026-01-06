@@ -24,7 +24,7 @@ class BaseTrainer:
     """
     def __init__(
         self,
-        config,  # TrainingConfig from YAML
+        config: Dict[str, Any],  # Config dict from YAML
         model,  # QuantizedGPT2ForQuestionAnswering
         train_loader: DataLoader,
         val_loader: DataLoader,
@@ -34,14 +34,14 @@ class BaseTrainer:
         Initialize base trainer.
         
         Args:
-            config: TrainingConfig object from config_loader
+            config: Config dict from config_loader (preserves YAML hierarchy)
             model: QuantizedGPT2ForQuestionAnswering instance
             train_loader: Training data loader
             val_loader: Validation data loader
             tokenizer: GPT2TokenizerFast instance
         """
         self.config = config
-        self.model = model.to(config.device)
+        self.model = model.to(config['training']['device'])
         self.train_loader = train_loader
         self.val_loader = val_loader
         self.tokenizer = tokenizer
@@ -55,16 +55,16 @@ class BaseTrainer:
 
         self.scheduler = get_linear_schedule_with_warmup(
             self.optimizer,
-            num_warmup_steps=self.config.warmup_steps,
-            num_training_steps=self.config.num_steps
+            num_warmup_steps=config['training']['warmup_steps'],
+            num_training_steps=config['training']['num_steps']
         )
 
 
-        # Log initial infof
+        # Log initial info
         self.logger.info("=" * 80)
-        self.logger.info(f"Experiment: {config.experiment_name}")
-        self.logger.info(f"Type: {config.experiment_type}")
-        self.logger.info(f"Device: {config.device}")
+        self.logger.info(f"Experiment: {config['experiment']['name']}")
+        self.logger.info(f"Type: {config['experiment']['type']}")
+        self.logger.info(f"Device: {config['training']['device']}")
         self.logger.info(f"Experiment directory: {self.experiment_dir}")
         self.logger.info("=" * 80)    
 
@@ -104,13 +104,13 @@ class BaseTrainer:
         # Create optimizer
         optimizer = optim.AdamW(
             lora_params,
-            lr=self.config.learning_rate,
-            weight_decay=self.config.weight_decay,
+            lr=self.config['training']['learning_rate'],
+            weight_decay=self.config['training']['weight_decay'],
             betas=(
-                self.config.adam_beta1,
-                self.config.adam_beta2
+                self.config['training']['adam_beta1'],
+                self.config['training']['adam_beta2']
             ),
-            eps=self.config.adam_epsilon
+            eps=self.config['training']['adam_epsilon']
         )
 
         return optimizer
@@ -130,8 +130,8 @@ class BaseTrainer:
             Path to experiment directory        
         """
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        exp_name = f"{self.config.experiment_name}_{timestamp}"
-        exp_dir = os.path.join(self.config.base_folder, exp_name)
+        exp_name = f"{self.config['experiment']['name']}_{timestamp}"
+        exp_dir = os.path.join(self.config['experiment']['base_folder'], exp_name)
 
         os.makedirs(os.path.join(exp_dir, "logs"), exist_ok=True)
         os.makedirs(os.path.join(exp_dir, "checkpoints"), exist_ok=True)
@@ -146,7 +146,7 @@ class BaseTrainer:
         Returns:
             Logger instance
         """
-        logger = logging.getLogger(f"trainer_{self.config.experiment_name}_{id(self)}")
+        logger = logging.getLogger(f"trainer_{self.config['experiment']['name']}_{id(self)}")
         logger.setLevel(logging.INFO)
 
         # Clear any existing handlers
@@ -178,31 +178,12 @@ class BaseTrainer:
         """
         Initialize W&B logging.
         """
-        if self.config.use_wandb:
-            # Convert config to dict for wandb
-            config_dict = {
-                'experiment': {
-                    'name': self.config.experiment_name,
-                    'type': self.config.experiment_type,
-                },
-                'training': {
-                    'num_steps': self.config.num_steps,
-                    'batch_size': self.config.batch_size,
-                    'learning_rate': self.config.learning_rate,
-                    'warmup_steps': self.config.warmup_steps,
-                },
-                'lora': {
-                    'r': self.config.lora_config.r,
-                    'lora_alpha': self.config.lora_config.lora_alpha,
-                    'lora_dropout': self.config.lora_config.lora_dropout,
-                }
-            }   
-
+        if self.config['logging']['use_wandb']:
             wandb.init(
-                project=self.config.wandb_project,
-                entity=self.config.wandb_entity,
-                name=f"{self.config.experiment_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
-                config=config_dict
+                project=self.config['logging']['wandb_project'],
+                entity=self.config['logging']['wandb_entity'],
+                name=f"{self.config['experiment']['name']}_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+                config=self.config  # Pass full config dict
             )         
 
             self.logger.info("✅ Wandb initialized")
@@ -227,10 +208,7 @@ class BaseTrainer:
         Returns:
             Dict with efficiency metrics        
         """
-        flop_multipliers = {
-            2: 1/16, 4: 1/8, 6: 1/5.33, 8: 1/4, 
-            12: 1/2.67, 16: 1/2, 32: 1.0
-        }
+        flop_multipliers = {i: i/32.0 for i in range(2, 33)}
         
         total_bits = 0
         total_flops_multiplier = 0.0
@@ -299,16 +277,16 @@ class BaseTrainer:
         checkpoint_path = os.path.join(
             self.experiment_dir,
             "checkpoints",
-            self.config.checkpoint_name
+            self.config['checkpointing']['checkpoint_name']
         )
-        from dataclasses import asdict
+        
         checkpoint = {
             'step': step,
             'model_state_dict': self.model.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict(),
             'scheduler_state_dict': self.scheduler.state_dict(),
             'metrics': metrics,
-            'config': asdict(self.config)
+            'config': self.config  # Already a dict
         }        
 
         torch.save(checkpoint, checkpoint_path)
@@ -340,7 +318,7 @@ class BaseTrainer:
         self.logger.info(log_str)
 
         # Wandb logging
-        if self.config.use_wandb:
+        if self.config['logging']['use_wandb']:
             wandb_metrics = {}
             for key, value in metrics.items():
                 if isinstance(value, (int, float)):
@@ -364,7 +342,7 @@ class BaseTrainer:
 
         # Move all tensors to device
         batch = {
-            k: v.to(self.config.device) if isinstance(v, torch.Tensor) else v
+            k: v.to(self.config['training']['device']) if isinstance(v, torch.Tensor) else v
             for k, v in batch.items()
         }
 
