@@ -151,8 +151,8 @@ class BaselineTrainer(BaseTrainer):
                 total_f1 += squad_metrics['f1']
 
                 # Collect sample logs from first batch
-                if step_i == 0:
-                    sample_logs.extend(squad_metrics.get('details', [])[:5])
+                if step_i < 4:
+                    sample_logs.extend(squad_metrics.get('details', [])[:])
 
         # Average metrics
         steps = self.config['training']['num_validation_steps']

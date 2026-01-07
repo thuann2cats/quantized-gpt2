@@ -5,7 +5,7 @@ experiment:
   name: "cpt_training_4to12bit"
   type: "cyclic"
   base_folder: "experiments"
-  description: "CPT with cosine schedule from 4-bit to 12-bit weights"
+  description: "CPT with cosine schedule from 4-bit to 12-bit weights (fixed the frozen QA head issue)"
 
 model:
   pretrained_model: "gpt2"

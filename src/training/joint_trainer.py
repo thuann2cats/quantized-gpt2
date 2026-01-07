@@ -205,7 +205,7 @@ class JointTrainer(BaseTrainer):
                     metrics_by_config[config_name]['f1'] += squad_metrics['f1']
 
                     # Collect samples from the first batch and first config
-                    if step_i == 0 and config_name == self.bit_width_config_names[0]:
+                    if step_i < 5 and (config_name == self.bit_width_config_names[0] or config_name == self.bit_width_config_names[-1]):
                         sample_logs.extend(squad_metrics.get('details', [])[:])
 
 

@@ -5,7 +5,7 @@ experiment:
   name: "joint_training_16configs"
   type: "joint"
   base_folder: "experiments"
-  description: "Joint training with 16 diverse configs: uniform, gradient, mixed, critical-first, and coverage"
+  description: "Joint training with 16 diverse configs: uniform, gradient, mixed, critical-first, and coverage (After fixing the frozen QA head issue)"
 
 model:
   pretrained_model: "gpt2"

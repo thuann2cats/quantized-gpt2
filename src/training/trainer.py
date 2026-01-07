@@ -79,31 +79,32 @@ class BaseTrainer:
         """
         Create AdamW optimizer.
         
-        Only optimize LoRA parameters!
-        Freeze all base model parameters.
+        Optimize LoRA parameters AND QA head!
+        Freeze base model parameters (transformer backbone).
         
         Returns:
             AdamW optimizer
         """       
-        # Collect LoRA parameters
-        lora_params = []
+        # Collect trainable parameters: LoRA + QA head
+        trainable_params = []
         frozen_count = 0
         trainable_count = 0
 
         for name, param in self.model.named_parameters():
-            if 'lora' in name:
+            # Train: LoRA adapters + QA head
+            if 'lora' in name or 'qa_outputs' in name:
                 param.requires_grad = True
-                lora_params.append(param)
+                trainable_params.append(param)
                 trainable_count += param.numel()
             else:
                 param.requires_grad = False
                 frozen_count += param.numel()
 
-        self.logger.info(f"Parameters: {trainable_count:,} trainable (LoRA), {frozen_count:,} frozen")
+        self.logger.info(f"Parameters: {trainable_count:,} trainable (LoRA + QA head), {frozen_count:,} frozen")
 
         # Create optimizer
         optimizer = optim.AdamW(
-            lora_params,
+            trainable_params,
             lr=self.config['training']['learning_rate'],
             weight_decay=self.config['training']['weight_decay'],
             betas=(

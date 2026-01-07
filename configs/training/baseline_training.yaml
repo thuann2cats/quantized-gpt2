@@ -12,16 +12,16 @@ model:
   # bit_width_configs removed as they are irrelevant for baseline
 
 training:
-  num_steps: 1000
+  num_steps: 8000
   batch_size: 32  # Reduced from 32 because full FT uses more memory than LoRA
   learning_rate: 3.0e-5  # Slightly lower LR for full fine-tuning
   weight_decay: 0.01
-  warmup_steps: 100
+  warmup_steps: 200
   max_grad_norm: 1.0
   
   # Logging intervals
-  log_every_steps: 25
-  validate_every_steps: 50
+  log_every_steps: 100
+  validate_every_steps: 200
   num_validation_steps: 5
   
   # Optimizer settings
